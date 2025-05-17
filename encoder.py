@@ -1,69 +1,59 @@
 import cv2
 import numpy as np
 
-def coding_text(text)->str:
+def coding_text(text)->tuple[int, str]:
     """
     Кодирование текста в восьмеричную (начиная с 1) систему
     :param text: Текст
-    :return: Кодированный текст, где каждый символ - 4 цифры
+    :return: Размер символа, Кодированный текст, где каждый символ определенной длины
     """
-    sp = ["".join(list(str(int(j)+1) for j in str(format(ord(i), "o")))) for i in text]
-    for i, e in enumerate(sp):
-        if len(e) < 4:
-            sp[i] = ("1"*(4-len(e)))+e
-    return "".join(sp)
 
-def decoding_text(symbols="")->str:
+    sp = ["".join(list(str(int(j)+1) for j in str(format(ord(i), "o")))) for i in text]
+    coded_sistem = len(max(sp, key=len))
+
+    for i, e in enumerate(sp):
+        sp[i] = e.rjust(coded_sistem, "1")
+
+    return coded_sistem, "".join(sp)
+
+
+def decoding_text(coded_sistem, code="")->str:
     """
     Декодирование текста из восьмеричной системы (начиная с 1)
-    :param symbols: символы
-    :return: закодированную букву
+    :param coded_sistem символы кодировки символа
+    :param symbols: код
+    :return: разкодированный текст
     """
-    symbols = symbols.removeprefix("1")
-    symbols = symbols.removeprefix("1")
-    symbols = symbols.removeprefix("1")
-    symbols = "".join(str(int(i)-1) for i in symbols)
-    num = int(symbols, 8)
-    return chr(num)
+    text = ""
+    for idx in range(0, len(code), coded_sistem):
+        symbols = code[idx:idx+coded_sistem]
+        symbols = symbols.lstrip("1")
+
+        if len(symbols) == 0:
+            symbols = "1"
+
+        symbols = "".join(str(int(i)-1) for i in symbols)
+        num = int(symbols, 8)
+        text += chr(num)
+    return text
 
 
 
-def create_secret_key(img_origin, sistem)->str:
-    """
-    Создает секретный ключ на основе массива.
-    :param img_origin: изображение для шифрования
-    :param sistem: система исчисления
-    :return: секретный ключ
-    """
-    s = chr(sistem+97) + "".join([chr(int(i)+97) for i in img_origin])
-
-    return s
 
 
-
-def undecode_secret_key(key)->tuple[int, np.array]:
-    """
-    Возвращает массив по ключу
-    :param key: секретный ключ
-    :return: система исчисления, массив
-    """
-    return ord(key[0])-97, np.array([ord(i)-97 for i in key[1:]])
-
-
-
-def code_image(img, text, system)->tuple[str, str, int]:
+def code_image(img, text, system)->tuple[int,str, int]:
     """
     Кодирование всего изображения
     :param img: Изображение
     :param text: Текст
     :param system: Система исчисления кодирования. Чем меньше, тем менее заметно, но тем больше места
-    :return: Секретный ключ, имя файла, упущенные символы (0-все сообщение закодировано)
+    :return: длина кодирования одного символа, имя файла с закодированным посланием, упущенные символы (0-все сообщение закодировано)
     """
     shape = img.shape
 
     img_orgin = img.copy()
 
-    coded_text = coding_text(text)
+    coded_sistem, coded_text = coding_text(text)
 
     idx_sym = 0
 
@@ -90,32 +80,40 @@ def code_image(img, text, system)->tuple[str, str, int]:
 
     loose = 0
     if not full_coded:
-        loose = (len(coded_text) - idx_sym) // 4
 
-    print(img.shape)
+        loose = (len(coded_text) - idx_sym) // coded_sistem
 
-
+    # print(coded_text[:100])
     code = (system+1) - (img_orgin.flatten() - img.flatten())
-    code = "".join(map(str, code)).replace(f"{system+1}","")
-    print(coded_text==code)
+    code = "".join(str(x) for x in code if x != system + 1)
 
-    return create_secret_key(img_orgin.flatten(), system), "img_result.png", loose
+
+    print("CORRECT FILE:",coded_text==code)
+
+
+    return coded_sistem, "img_result.png", loose
 
 
 
 if __name__ == "__main__":
     system = 8
-    f = open("text.txt", "r", encoding="UTF-8")
+
+    f = open("all-Warp-and-Piece.txt", "r", encoding="UTF-8") # текст
+    img_name = "img.png"# изображение
+
     text = f.read()
     f.close()
 
-    img = cv2.imread("img.png")
+    img = cv2.imread(img_name)
 
-    key, f, l = code_image(img, text, system)
-    print(l)
+    coded_sistem, f, l = code_image(img, text, system)
+    print("LOST SYMBOLS (AVERAGE)", l)
+    print("CODE SISTEM:", coded_sistem)
 
-    with open("secret.txt", "w", encoding="UTF-32") as f:
-        f.write(key)
+
+    f1 = open("secret.txt", "w", encoding="UTF-8")
+    f1.write(f"{coded_sistem} {system} {img_name}")
+    f1.close()
 
 
     #TODO: проверить символы loose
